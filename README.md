@@ -1,12 +1,11 @@
 ## Описание
 Библиотека создана для уведомления о новых видео без api токена
 
-
 ### Установка
 ```python
 from youtube import youtube
 ```
-у него есть всего три методы
+У него есть всего три методы
 - get_channel(url: str) -> Channel
 - get_videos(elf, channel_id: str) -> list[Video]
 - get_new_videos(self, channel: Channel) -> list[Video]
