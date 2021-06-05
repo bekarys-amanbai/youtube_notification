@@ -1,6 +1,8 @@
-# version 0.4
+# version 0.5
 
+import re
 import json
+from typing import Union
 
 import requests
 from bs4 import BeautifulSoup
@@ -11,6 +13,19 @@ from .exception import ThisIsNotAYoutubeLink
 
 class Youtube:
     def get_videos(self, channel_id: str) -> list[Video]:
+        """
+        Will return no more than 15 recent videos from the channel
+
+        :param channel_id:
+            channel_id
+                UCQWeDEwQruA_CcyR08bIE9g
+            or link to YouTube channel
+                https://www.youtube.com/user/ikakProsto
+                https://www.youtube.com/channel/UCQWeDEwQruA_CcyR08bIE9g
+                https://www.youtube.com/channel/UCQWeDEwQruA_CcyR08bIE9g/videos
+
+        :return list[Video]:
+        """
         if channel_id.startswith(('https://', 'http://')):
             channel_id = self.get_channel(channel_id).id
 
@@ -49,12 +64,15 @@ class Youtube:
 
         return videos
 
-    def get_new_videos(self, channel: Channel) -> list[Video]:
+    def get_new_videos(self, channel: Union[Channel, tuple[str, list[str]]]) -> list[Video]:
+        if isinstance(channel, tuple):
+            channel = Channel(name='None', id=channel[0], video_id=channel[1])
+
         videos = self.get_videos(channel.id)
 
         new_videos = []
         for video in videos:
-            if video.id == channel.last_video_id:
+            if video.id in channel.video_id:
                 break
             else:
                 new_videos.append(video)
@@ -63,21 +81,15 @@ class Youtube:
     @staticmethod
     def get_channel(url: str) -> Channel:
 
-        if not url.startswith(('https://www.youtube.com/',
-                               'http://www.youtube.com/',
-                               'https://youtube.com/',
-                               'http://youtube.com/',
-                               'https://youtu.be/',
-                               'http://youtu.be/')):
+        if not re.match(r'(https?://)(www.)?(youtube\.com/)', url):
             raise ThisIsNotAYoutubeLink(f'This is not a Youtube link {url}')
 
         # добавление в конец 'videos' если нету
-        url_arr = url.split('/')
-        if not url_arr[-1]:
-            if url_arr[-2] != 'videos':
+        if url[-6:] != 'videos' and url[-7:] != 'videos/':
+            if url[-1] == '/':
                 url += 'videos'
-        elif url_arr[-1] != 'videos':
-            url += '/videos'
+            else:
+                url += '/videos'
 
         headers = {
             'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:86.0) Gecko/20100101 Firefox/8',
@@ -93,14 +105,20 @@ class Youtube:
 
         channel_raw = json.loads(html_text[start:end])
 
-        last_video_id = (channel_raw['contents']['twoColumnBrowseResultsRenderer']['tabs'][1]['tabRenderer']['content']
-                                    ['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][0]
-                                    ['gridRenderer']['items'][0]['gridVideoRenderer']['videoId'])
+        video_id = [channel_raw['contents']['twoColumnBrowseResultsRenderer']['tabs'][1]['tabRenderer']['content']
+                    ['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][0]
+                    ['gridRenderer']['items'][0]['gridVideoRenderer']['videoId'],
+                    channel_raw['contents']['twoColumnBrowseResultsRenderer']['tabs'][1]['tabRenderer']['content']
+                    ['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][0]
+                    ['gridRenderer']['items'][1]['gridVideoRenderer']['videoId'],
+                    channel_raw['contents']['twoColumnBrowseResultsRenderer']['tabs'][1]['tabRenderer']['content']
+                    ['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][0]
+                    ['gridRenderer']['items'][2]['gridVideoRenderer']['videoId']]
 
         channel = Channel(
             name=channel_raw['microformat']['microformatDataRenderer']['title'],
             id=channel_raw['microformat']['microformatDataRenderer']['urlCanonical'].split('/')[-1],
-            last_video_id=last_video_id
+            video_id=video_id
         )
 
         return channel

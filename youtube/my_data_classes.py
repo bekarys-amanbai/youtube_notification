@@ -20,4 +20,4 @@ class Video:
 class Channel:
     name: str
     id: str
-    last_video_id: str
+    video_id: list
